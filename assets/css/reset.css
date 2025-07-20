@@ -1,0 +1,104 @@
+ :root {
+            --primary-color: #00a54f;
+            --secondary-color: #007f3d;
+            --accent-color: #d4af37;
+            --text-color: #333333;
+            --light-text: #666666;
+            --background: #f5f7f5;
+            --card-bg: #ffffff;
+            --danger: #e74c3c;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--background);
+            color: var(--text-color);
+            background-image: linear-gradient(to bottom right, rgba(0, 165, 79, 0.03), rgba(212, 175, 55, 0.03));
+        }
+
+        .auth-container {
+            max-width: 480px;
+            margin: 0 auto;
+            padding: 2rem;
+            border-radius: 16px;
+            background-color: var(--card-bg);
+            box-shadow: 0 10px 25px rgba(0, 125, 61, 0.1);
+            border-top: 4px solid var(--accent-color);
+        }
+
+        .auth-logo {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 2rem;
+        }
+
+        .auth-logo img {
+            height: 72px;
+            width: auto;
+        }
+
+        .auth-title {
+            font-weight: 700;
+            font-size: 1.75rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .auth-subtitle {
+            color: var(--light-text);
+            margin-bottom: 2rem;
+        }
+
+        .btn-primary {
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+
+        .btn-primary:hover {
+            background-color: var(--secondary-color);
+        }
+
+        .btn-primary.loading {
+            pointer-events: none;
+            opacity: 0.8;
+        }
+
+        .spinner {
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s ease-in-out infinite;
+            display: none;
+            margin-right: 8px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .error-container {
+            position: relative;
+            margin-bottom: 1.5rem;
+        }
+
+        .error-message {
+            color: var(--danger);
+            font-size: 0.875rem;
+            margin-top: 0.25rem;
+        }
+
+        .form-control:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 0.25rem rgba(0, 165, 79, 0.1);
+        }
+
+        .alert {
+            border-radius: 8px;
+            font-size: 0.9rem;
+            border: none;
+            margin-bottom: 1.5rem;
+            border-left: 4px solid var(--accent-color);
+            background-color: rgba(212, 175, 55, 0.2);
+            color: #8B7513;
+        }

@@ -1,0 +1,25 @@
+---
+deployment:
+  tasks:
+    # Set the deployment path
+    - export DEPLOYPATH=/home1/stepaka1/public_html/
+    
+    # Remove old deployment (optional - uncomment if you want clean deployments)
+    # - /bin/rm -rf $DEPLOYPATH*
+    
+    # Copy all files and directories, excluding .git and other version control files tonny apeli
+    - /bin/find . -type f ! -path "./.git/*" ! -path "./.svn/*" ! -path "./.hg/*" ! -name ".gitignore" ! -name ".gitattributes" ! -name ".cpanel.yml" ! -name "README*" ! -name "*.md" -exec /bin/cp --parents {} $DEPLOYPATH \;
+    
+    # Alternative single command approach (uncomment this and comment above if preferred)
+    # - /bin/rsync -av --exclude='.git/' --exclude='.svn/' --exclude='.hg/' --exclude='.gitignore' --exclude='.gitattributes' --exclude='.cpanel.yml' --exclude='README*' --exclude='*.md' ./ $DEPLOYPATH
+    
+    # Set proper permissions for all files
+    - /bin/find $DEPLOYPATH -type f -exec /bin/chmod 644 {} \; 2>/dev/null || true
+    
+    # Set proper permissions for directories
+    - /bin/find $DEPLOYPATH -type d -exec /bin/chmod 755 {} \; 2>/dev/null || true
+    
+    # Set executable permissions for scripts (if any)
+    - /bin/find $DEPLOYPATH -name "*.sh" -exec /bin/chmod 755 {} \; 2>/dev/null || true
+    - /bin/find $DEPLOYPATH -name "*.pl" -exec /bin/chmod 755 {} \; 2>/dev/null || true
+    - /bin/find $DEPLOYPATH -name "*.py" -exec /bin/chmod 755 {} \; 2>/dev/null || true
