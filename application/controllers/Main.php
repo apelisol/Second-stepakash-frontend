@@ -76,12 +76,16 @@ class Main extends CI_Controller
             $this->session->set_flashdata('msg', $message);
             redirect('logout');
         } elseif ($status == 'success' || $status == 'error') {
-            // Add Deriv balance if connected
-            if ($this->session->userdata('deriv_token')) {
-                $data['deriv_balance'] = $this->fetchLiveDerivBalance(
-                    $this->session->userdata('deriv_token'),
-                    $data['buyrate'] // Pass the current buy rate for conversion
-                );
+            // Get Deriv balance if account is connected
+            $deriv_token = $this->session->userdata('deriv_token');
+            if ($deriv_token) {
+                $deriv_balance = $this->getDerivBalance($deriv_token);
+                $data['deriv_balance'] = $deriv_balance;
+
+                // Calculate equivalent KES value using buy rate
+                if ($deriv_balance && isset($deriv_balance['balance'])) {
+                    $data['deriv_balance_kes'] = $deriv_balance['balance'] * $data['buyrate'];
+                }
             }
 
             $this->load->view('includes/header');
@@ -93,72 +97,143 @@ class Main extends CI_Controller
         }
     }
 
-    private function fetchLiveDerivBalance($token, $buyrate)
+    private function getDerivBalance($token)
     {
+        // Check for cached balance first (valid for 1 minute)
+        $cacheKey = 'deriv_balance_' . md5($token);
+        $cached = $this->cache->get($cacheKey);
+
+        if ($cached !== false) {
+            return $cached;
+        }
+
         try {
             $appId = 76420; // Your Deriv app ID
             $url = "wss://ws.derivws.com/websockets/v3?app_id={$appId}";
 
-            $client = new \WebSocket\Client($url, [
-                'timeout' => 5,
-                'headers' => ['Origin' => base_url()],
+            $options = [
+                'timeout' => 10, // Increased timeout
+                'headers' => [
+                    'Origin' => base_url(),
+                    'Content-Type' => 'application/json'
+                ],
                 'context' => stream_context_create([
-                    'ssl' => ['verify_peer' => false, 'verify_peer_name' => false]
+                    'ssl' => [
+                        'verify_peer' => false,
+                        'verify_peer_name' => false,
+                    ],
                 ]),
-            ]);
+            ];
 
-            // 1. Authenticate
+            $client = new \WebSocket\Client($url, $options);
+
+            // Step 1: Authorize with user token
             $client->send(json_encode(["authorize" => $token]));
-            $auth = json_decode($client->receive(), true);
-            if (isset($auth['error'])) throw new Exception($auth['error']['message']);
+            $authResponse = json_decode($client->receive(), true);
 
-            // 2. Get balance
-            $client->send(json_encode(["balance" => 1, "subscribe" => 0]));
-            $balance = json_decode($client->receive(), true);
+            if (isset($authResponse['error'])) {
+                throw new Exception('Authorization failed: ' . $authResponse['error']['message']);
+            }
+
+            // Step 2: Get balance for all accounts
+            $client->send(json_encode([
+                "balance" => 1,
+                "account" => "all", // Get all accounts
+                "subscribe" => 0 // Don't subscribe, just get current balance
+            ]));
+
+            $balanceResponse = json_decode($client->receive(), true);
             $client->close();
 
-            return [
-                'amount' => $balance['balance']['balance'] ?? 0,
-                'currency' => $balance['balance']['currency'] ?? 'USD',
-                'account' => $auth['authorize']['loginid'],
-                'equivalent_kes' => ($balance['balance']['balance'] ?? 0) * $buyrate,
-                'last_updated' => date('Y-m-d H:i:s')
+            if (!isset($balanceResponse['balance'])) {
+                throw new Exception('Invalid balance response');
+            }
+
+            // Process the balance response
+            $result = [
+                'accounts' => [],
+                'total_balance' => 0,
+                'currency' => 'USD',
+                'timestamp' => time()
             ];
+
+            // Handle single account response
+            if (isset($balanceResponse['balance']['balance'])) {
+                $result['accounts'][] = [
+                    'loginid' => $authResponse['authorize']['loginid'],
+                    'balance' => $balanceResponse['balance']['balance'],
+                    'currency' => $balanceResponse['balance']['currency'] ?? 'USD'
+                ];
+                $result['total_balance'] = $balanceResponse['balance']['balance'];
+            }
+            // Handle multiple accounts response
+            elseif (is_array($balanceResponse['balance'])) {
+                foreach ($balanceResponse['balance'] as $account) {
+                    $result['accounts'][] = [
+                        'loginid' => $account['loginid'],
+                        'balance' => $account['balance'],
+                        'currency' => $account['currency'] ?? 'USD'
+                    ];
+                    $result['total_balance'] += $account['balance'];
+                }
+            }
+
+            // Cache the result for 1 minute
+            $this->cache->save($cacheKey, $result, 60);
+
+            return $result;
         } catch (Exception $e) {
-            log_message('error', 'Deriv Balance Error: ' . $e->getMessage());
+            log_message('error', 'Deriv API Error: ' . $e->getMessage());
+
+            // Return cached data if available, even if expired
+            $staleCache = $this->cache->get($cacheKey);
+            if ($staleCache !== false) {
+                $staleCache['stale'] = true;
+                return $staleCache;
+            }
+
             return [
                 'error' => $e->getMessage(),
-                'amount' => 0,
+                'accounts' => [],
+                'total_balance' => 0,
                 'currency' => 'USD'
             ];
         }
     }
 
-    public function refresh_balance_ajax()
+    public function refresh_deriv_balance()
     {
+        header('Content-Type: application/json');
+
         if (!$this->input->is_ajax_request()) {
-            show_404();
+            echo json_encode(['status' => 'error', 'message' => 'Invalid request']);
+            return;
         }
 
-        $response = [
-            'status' => 'error',
-            'message' => 'Not connected'
-        ];
-
-        if ($token = $this->session->userdata('deriv_token')) {
-            $rates = $this->get_rates(); // Make sure this method exists
-            $balance = $this->fetchLiveDerivBalance($token, $rates['deriv_buy']);
-
-            $response = [
-                'status' => isset($balance['error']) ? 'error' : 'success',
-                'balance' => $balance,
-                'timestamp' => date('H:i:s')
-            ];
+        $deriv_token = $this->session->userdata('deriv_token');
+        if (!$deriv_token) {
+            echo json_encode(['status' => 'error', 'message' => 'No Deriv account connected']);
+            return;
         }
 
-        $this->output
-            ->set_content_type('application/json')
-            ->set_output(json_encode($response));
+        $balance = $this->getDerivBalance($deriv_token);
+
+        if ($balance === null) {
+            echo json_encode(['status' => 'error', 'message' => 'Failed to fetch balance']);
+            return;
+        }
+
+        // Get current rates to calculate KES equivalent
+        $rates = $this->get_rates();
+        $balance_kes = $balance['balance'] * $rates['deriv_buy'];
+
+        echo json_encode([
+            'status' => 'success',
+            'balance' => number_format($balance['balance'], 2),
+            'currency' => $balance['currency'],
+            'balance_kes' => number_format($balance_kes, 2),
+            'account' => $balance['account']
+        ]);
     }
 
     public function transactions()
