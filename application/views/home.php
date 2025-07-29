@@ -694,7 +694,7 @@ if (!empty($checkout_token)) {
     <!-- jsPDF for PDF generation -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
-    // At the bottom of home.php
+
     <script>
         $(document).ready(function() {
             // Refresh Deriv balance
