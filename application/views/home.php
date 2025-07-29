@@ -304,33 +304,50 @@ if (!empty($checkout_token)) {
             </div>
 
             <!-- Deriv Balance Card -->
-            <div class="bg-blue-600 rounded-lg shadow-md text-white p-4 mb-6 relative">
-                <div class="flex justify-between items-start">
-                    <div>
-                        <div class="flex items-center">
-                            <span class="text-sm opacity-80">Deriv Balance</span>
-                            <button id="refreshDeriv" class="ml-2 text-white hover:text-blue-200">
-                                <i class="fas fa-sync-alt"></i>
-                            </button>
+            <div class="bg-gradient-to-br from-blue-600 to-blue-800 rounded-xl shadow-lg overflow-hidden mb-6 relative" id="derivBalanceCard">
+                <div class="absolute inset-0 bg-gradient-to-br from-white to-transparent opacity-10"></div>
+                <div class="p-6 relative z-10">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <div class="flex items-center">
+                                <p class="text-white text-opacity-90 text-sm mr-2">Deriv Account Balance</p>
+                                <button id="refreshDerivBalance" class="text-white hover:text-blue-200">
+                                    <i class="fas fa-sync-alt text-xs"></i>
+                                </button>
+                            </div>
+                            <h2 class="text-2xl font-bold text-white flex items-center mt-1">
+                                <?php if (isset($deriv_balance) && isset($deriv_balance['balance'])): ?>
+                                    <?php echo $deriv_balance['currency']; ?> <?php echo number_format($deriv_balance['balance'], 2); ?>
+                                <?php else: ?>
+                                    Not Connected
+                                <?php endif; ?>
+                            </h2>
+                            <?php if (isset($deriv_balance_kes)): ?>
+                                <p class="text-white text-opacity-80 text-xs mt-1">
+                                    ≈ KES <?php echo number_format($deriv_balance_kes, 2); ?>
+                                </p>
+                            <?php endif; ?>
                         </div>
-                        <h3 class="text-xl font-bold mt-1">
-                            <?php if (isset($deriv_balance['error'])): ?>
-                                <span class="text-yellow-300">Error: <?= $deriv_balance['error'] ?></span>
-                            <?php elseif (isset($deriv_balance['amount'])): ?>
-                                <?= $deriv_balance['currency'] ?> <?= number_format($deriv_balance['amount'], 2) ?>
-                                <span class="block text-sm font-normal mt-1">
-                                    ≈ KES <?= number_format($deriv_balance['equivalent_kes'], 2) ?>
+                        <div>
+                            <?php if ($this->session->userdata('deriv_token')): ?>
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                    Connected
                                 </span>
                             <?php else: ?>
-                                <a href="<?= base_url('Auth/derivauth') ?>" class="text-yellow-300 hover:underline">
-                                    Connect Deriv Account
+                                <a href="<?php echo base_url() ?>Auth/derivauth" class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 hover:bg-yellow-200">
+                                    Connect Account
                                 </a>
                             <?php endif; ?>
-                        </h3>
+                        </div>
                     </div>
-                    <?php if (isset($deriv_balance['account'])): ?>
-                        <span class="bg-black bg-opacity-20 px-2 py-1 rounded text-xs">
-                            <?= $deriv_balance['account'] ?>
+                </div>
+                <div class="bg-white bg-opacity-10 p-4 flex justify-between items-center">
+                    <span class="text-white text-sm">
+                        Deriv USD Account
+                    </span>
+                    <?php if ($this->session->userdata('deriv_account_number')): ?>
+                        <span class="text-white text-sm font-mono">
+                            <?php echo $this->session->userdata('deriv_account_number'); ?>
                         </span>
                     <?php endif; ?>
                 </div>
