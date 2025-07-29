@@ -1,10 +1,6 @@
 <?php
 defined('BASEPATH') or exit('No direct script access allowed');
 
-require_once FCPATH . 'vendor/autoload.php';
-
-use WebSocket\Client;
-
 class Main extends CI_Controller
 {
 
@@ -164,188 +160,30 @@ class Main extends CI_Controller
         $session_id = $this->session->userdata('session_id');
         $crNumber = $this->input->post('crNumber_withdraw');
         $amount = $this->input->post('deriv_amount');
-
-        // Get user's Deriv token from session or database
-        $deriv_token = $this->session->userdata('deriv_token');
-        if (!$deriv_token) {
-            // Try to get from database if not in session
-            $this->load->model('User_model');
-            $user = $this->User_model->get_user_by_wallet_id($this->session->userdata('wallet_id'));
-            $deriv_token = $user->deriv_token ?? null;
-        }
-
-        if (!$deriv_token) {
-            $this->session->set_flashdata('msg', 'Deriv account not connected');
-            redirect('home');
-            return;
-        }
-
-        // First verify the withdrawal with our backend
         $body = array(
             'session_id' => $session_id,
             'crNumber' => $crNumber,
-            'amount' => $amount,
-            'deriv_token' => $deriv_token
+            'amount' => $amount
         );
 
         $response = $this->Operations->CurlPost($url, $body);
         $decode = json_decode($response, true);
 
-        $status = $decode['status'] ?? null;
-        $message = $decode['message'] ?? 'Unknown error';
-        $data = $decode['data'] ?? null;
+        $status = $decode['status'];
+        $message = $decode['message'];
+        $data = $decode['data'];
 
-        if ($status === 'success') {
-            // If backend verification succeeds, proceed with actual Deriv withdrawal
-            $withdrawal_result = $this->processDerivWithdrawal($deriv_token, $crNumber, $amount);
-
-            if ($withdrawal_result['success']) {
-                $this->session->set_flashdata('msg', 'Withdrawal successful: ' . $withdrawal_result['message']);
-            } else {
-                $this->session->set_flashdata('msg', 'Withdrawal failed: ' . $withdrawal_result['message']);
-            }
-        } else {
+        if ($status == 'fail') {
             $this->session->set_flashdata('msg', $message);
-        }
-
-        redirect('home');
-    }
-
-    private function processDerivWithdrawal($token, $account_number, $amount)
-    {
-        try {
-            // Connect to Deriv WebSocket
-            $app_id = '76420'; // Your Deriv app ID
-            $websocket_url = "wss://ws.derivws.com/websockets/v3?app_id={$app_id}&brand=deriv";
-
-            // Initialize WebSocket connection
-            $socket = new WebSocket\Client($websocket_url);
-
-            // Authenticate with the token
-            $auth_request = [
-                "authorize" => $token
-            ];
-            $socket->send(json_encode($auth_request));
-
-            // Wait for authorization response
-            $auth_response = json_decode($socket->receive(), true);
-
-            if (isset($auth_response['error'])) {
-                return [
-                    'success' => false,
-                    'message' => $auth_response['error']['message'] ?? 'Authorization failed'
-                ];
-            }
-
-            // Prepare withdrawal request
-            $withdrawal_request = [
-                "paymentagent_withdraw" => 1,
-                "amount" => (float)$amount,
-                "currency" => "USD",
-                "paymentagent_loginid" => $account_number,
-                "req_id" => (int)microtime(true)
-            ];
-
-            $socket->send(json_encode($withdrawal_request));
-
-            // Get withdrawal response
-            $withdrawal_response = json_decode($socket->receive(), true);
-
-            $socket->close();
-
-            if (isset($withdrawal_response['error'])) {
-                return [
-                    'success' => false,
-                    'message' => $withdrawal_response['error']['message'] ?? 'Withdrawal failed'
-                ];
-            }
-
-            if ($withdrawal_response['paymentagent_withdraw'] == 1) {
-                return [
-                    'success' => true,
-                    'message' => 'Withdrawal processed successfully. Transaction ID: ' .
-                        ($withdrawal_response['transaction_id'] ?? 'N/A'),
-                    'transaction_id' => $withdrawal_response['transaction_id'] ?? null
-                ];
-            }
-
-            return [
-                'success' => false,
-                'message' => 'Withdrawal request was not processed'
-            ];
-        } catch (Exception $e) {
-            return [
-                'success' => false,
-                'message' => 'WebSocket error: ' . $e->getMessage()
-            ];
+            redirect('logout');
+        } elseif ($status == 'success' || $status == 'error') {
+            $this->session->set_flashdata('msg', $message);
+            redirect('home');
+        } else {
+            $this->session->set_flashdata('msg', 'something went wrong');
+            redirect('logout');
         }
     }
-
-
-    // public function getDerivBalance()
-    // {
-    //     header('Content-Type: application/json');
-
-    //     $session_id = $this->session->userdata('session_id');
-    //     if (!$session_id) {
-    //         echo json_encode(['status' => 'error', 'message' => 'Not authorized']);
-    //         return;
-    //     }
-
-    //     // Get user's Deriv token
-    //     $deriv_token = $this->session->userdata('deriv_token');
-    //     if (!$deriv_token) {
-    //         $this->load->model('User_model');
-    //         $user = $this->User_model->get_user_by_session($session_id);
-    //         $deriv_token = $user->deriv_token ?? null;
-    //     }
-
-    //     if (!$deriv_token) {
-    //         echo json_encode(['status' => 'error', 'message' => 'Deriv account not connected']);
-    //         return;
-    //     }
-
-    //     try {
-    //         $app_id = '76420'; // Your Deriv app ID
-    //         $websocket_url = "wss://ws.derivws.com/websockets/v3?app_id={$app_id}&brand=deriv";
-
-    //         $socket = new WebSocket\Client($websocket_url);
-
-    //         // Authenticate
-    //         $auth_request = ["authorize" => $deriv_token];
-    //         $socket->send(json_encode($auth_request));
-    //         $auth_response = json_decode($socket->receive(), true);
-
-    //         if (isset($auth_response['error'])) {
-    //             throw new Exception($auth_response['error']['message'] ?? 'Authorization failed');
-    //         }
-
-    //         // Get balance
-    //         $balance_request = ["get_account_status" => 1];
-    //         $socket->send(json_encode($balance_request));
-    //         $balance_response = json_decode($socket->receive(), true);
-
-    //         $socket->close();
-
-    //         if (isset($balance_response['error'])) {
-    //             throw new Exception($balance_response['error']['message'] ?? 'Failed to get balance');
-    //         }
-
-    //         $balance = $balance_response['get_account_status']['balance'] ?? 0;
-    //         $currency = $balance_response['get_account_status']['currency'] ?? 'USD';
-
-    //         echo json_encode([
-    //             'status' => 'success',
-    //             'balance' => $balance,
-    //             'currency' => $currency
-    //         ]);
-    //     } catch (Exception $e) {
-    //         echo json_encode([
-    //             'status' => 'error',
-    //             'message' => $e->getMessage()
-    //         ]);
-    //     }
-    // }
 
     public function DepositFromMpesa()
     {
