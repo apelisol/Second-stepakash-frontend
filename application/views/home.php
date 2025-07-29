@@ -339,46 +339,7 @@ if (!empty($checkout_token)) {
                 </div>
             <?php endif; ?>
 
-            // At the bottom of home.php
-            <script>
-                $(document).ready(function() {
-                    // Refresh Deriv balance
-                    $('#refreshDerivBalance').click(function() {
-                        const $icon = $(this).find('i');
-                        $icon.addClass('fa-spin');
 
-                        $.ajax({
-                            url: '<?= base_url('Main/refresh_deriv_balance') ?>',
-                            type: 'GET',
-                            dataType: 'json',
-                            success: function(response) {
-                                if (response.status === 'success') {
-                                    $('#derivBalanceAmount').html(
-                                        response.currency + ' ' + response.balance +
-                                        ' <span class="text-lg ml-2">(KES ' + response.balance_kes + ')</span>'
-                                    );
-
-                                    // Update account info if available
-                                    if (response.account) {
-                                        $('.deriv-account').text('Account: ' + response.account);
-                                    }
-
-                                    // Remove error if present
-                                    $('.deriv-error').remove();
-                                } else {
-                                    alert('Error: ' + response.message);
-                                }
-                            },
-                            error: function() {
-                                alert('Error refreshing balance');
-                            },
-                            complete: function() {
-                                $icon.removeClass('fa-spin');
-                            }
-                        });
-                    });
-                });
-            </script>
 
             <!--Flash Message -->
             <!-- Flash Message -->
@@ -732,6 +693,47 @@ if (!empty($checkout_token)) {
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <!-- jsPDF for PDF generation -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+    // At the bottom of home.php
+    <script>
+        $(document).ready(function() {
+            // Refresh Deriv balance
+            $('#refreshDerivBalance').click(function() {
+                const $icon = $(this).find('i');
+                $icon.addClass('fa-spin');
+
+                $.ajax({
+                    url: '<?= base_url('Main/refresh_deriv_balance') ?>',
+                    type: 'GET',
+                    dataType: 'json',
+                    success: function(response) {
+                        if (response.status === 'success') {
+                            $('#derivBalanceAmount').html(
+                                response.currency + ' ' + response.balance +
+                                ' <span class="text-lg ml-2">(KES ' + response.balance_kes + ')</span>'
+                            );
+
+                            // Update account info if available
+                            if (response.account) {
+                                $('.deriv-account').text('Account: ' + response.account);
+                            }
+
+                            // Remove error if present
+                            $('.deriv-error').remove();
+                        } else {
+                            alert('Error: ' + response.message);
+                        }
+                    },
+                    error: function() {
+                        alert('Error refreshing balance');
+                    },
+                    complete: function() {
+                        $icon.removeClass('fa-spin');
+                    }
+                });
+            });
+        });
+    </script>
 </body>
 
 </html>
