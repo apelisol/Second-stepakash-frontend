@@ -97,26 +97,21 @@ class Main extends CI_Controller
         }
     }
 
+    // Frontend Controller (Main.php)
     private function getDerivBalance($token)
     {
-        // Check for cached balance first (valid for 1 minute)
+        // Check cache first
         $cacheKey = 'deriv_balance_' . md5($token);
         $cached = $this->cache->get($cacheKey);
-
-        if ($cached !== false) {
-            return $cached;
-        }
+        if ($cached !== false) return $cached;
 
         try {
-            $appId = 76420; // Your Deriv app ID
+            $appId = 76420;
             $url = "wss://ws.derivws.com/websockets/v3?app_id={$appId}";
 
             $options = [
-                'timeout' => 10, // Increased timeout
-                'headers' => [
-                    'Origin' => base_url(),
-                    'Content-Type' => 'application/json'
-                ],
+                'timeout' => 5,
+                'headers' => ['Origin' => base_url()],
                 'context' => stream_context_create([
                     'ssl' => [
                         'verify_peer' => false,
@@ -127,7 +122,7 @@ class Main extends CI_Controller
 
             $client = new \WebSocket\Client($url, $options);
 
-            // Step 1: Authorize with user token
+            // 1. Authorize
             $client->send(json_encode(["authorize" => $token]));
             $authResponse = json_decode($client->receive(), true);
 
@@ -135,57 +130,39 @@ class Main extends CI_Controller
                 throw new Exception('Authorization failed: ' . $authResponse['error']['message']);
             }
 
-            // Step 2: Get balance for all accounts
+            // 2. Get balance
             $client->send(json_encode([
                 "balance" => 1,
-                "account" => "all", // Get all accounts
-                "subscribe" => 0 // Don't subscribe, just get current balance
+                "subscribe" => 0,
+                "account" => "current" // Request current account balance
             ]));
 
             $balanceResponse = json_decode($client->receive(), true);
             $client->close();
 
+            // Properly parse the response
+            if (isset($balanceResponse['error'])) {
+                throw new Exception('Balance error: ' . $balanceResponse['error']['message']);
+            }
+
             if (!isset($balanceResponse['balance'])) {
                 throw new Exception('Invalid balance response');
             }
 
-            // Process the balance response
             $result = [
-                'accounts' => [],
-                'total_balance' => 0,
-                'currency' => 'USD',
+                'balance' => $balanceResponse['balance']['balance'],
+                'currency' => $balanceResponse['balance']['currency'] ?? 'USD',
+                'account' => $authResponse['authorize']['loginid'],
                 'timestamp' => time()
             ];
 
-            // Handle single account response
-            if (isset($balanceResponse['balance']['balance'])) {
-                $result['accounts'][] = [
-                    'loginid' => $authResponse['authorize']['loginid'],
-                    'balance' => $balanceResponse['balance']['balance'],
-                    'currency' => $balanceResponse['balance']['currency'] ?? 'USD'
-                ];
-                $result['total_balance'] = $balanceResponse['balance']['balance'];
-            }
-            // Handle multiple accounts response
-            elseif (is_array($balanceResponse['balance'])) {
-                foreach ($balanceResponse['balance'] as $account) {
-                    $result['accounts'][] = [
-                        'loginid' => $account['loginid'],
-                        'balance' => $account['balance'],
-                        'currency' => $account['currency'] ?? 'USD'
-                    ];
-                    $result['total_balance'] += $account['balance'];
-                }
-            }
-
-            // Cache the result for 1 minute
+            // Cache for 1 minute
             $this->cache->save($cacheKey, $result, 60);
-
             return $result;
         } catch (Exception $e) {
             log_message('error', 'Deriv API Error: ' . $e->getMessage());
 
-            // Return cached data if available, even if expired
+            // Return cached data if available (even if expired)
             $staleCache = $this->cache->get($cacheKey);
             if ($staleCache !== false) {
                 $staleCache['stale'] = true;
@@ -194,8 +171,7 @@ class Main extends CI_Controller
 
             return [
                 'error' => $e->getMessage(),
-                'accounts' => [],
-                'total_balance' => 0,
+                'balance' => 0,
                 'currency' => 'USD'
             ];
         }

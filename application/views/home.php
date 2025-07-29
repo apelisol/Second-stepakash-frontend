@@ -303,56 +303,82 @@ if (!empty($checkout_token)) {
                 </div>
             </div>
 
-            <!-- Add this section after your main balance card in home.php -->
-            <?php if (isset($deriv_balance) && !isset($deriv_balance['error'])): ?>
-                <div class="bg-gradient-to-r from-blue-600 to-indigo-500 rounded-xl shadow-lg overflow-hidden mb-6 relative">
+            <!-- application/views/home.php -->
+            <!-- After the main balance card -->
+            <?php if (isset($deriv_balance) && is_array($deriv_balance)): ?>
+                <!-- Deriv Balance Card -->
+                <div class="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl shadow-lg overflow-hidden mb-6 relative">
                     <div class="absolute inset-0 bg-gradient-to-br from-white to-transparent opacity-10"></div>
                     <div class="p-6 relative z-10">
                         <div class="flex justify-between items-start">
                             <div>
                                 <p class="text-white text-opacity-90 text-sm">Deriv Balance</p>
-                                <h2 class="text-2xl font-bold text-white flex items-center">
-                                    <?php echo $deriv_balance['currency'] . ' ' . number_format($deriv_balance['total_balance'], 2); ?>
-                                    <?php if (isset($deriv_balance['stale'])): ?>
-                                        <span class="ml-2 text-xs bg-yellow-500 text-white px-2 py-1 rounded">Cached</span>
+                                <h2 id="derivBalanceAmount" class="text-2xl font-bold text-white flex items-center">
+                                    <?= $deriv_balance['currency'] ?> <?= number_format($deriv_balance['balance'], 2) ?>
+                                    <?php if (isset($deriv_balance_kes)): ?>
+                                        <span class="text-lg ml-2">(KES <?= number_format($deriv_balance_kes, 2) ?>)</span>
                                     <?php endif; ?>
                                 </h2>
-                                <?php if (isset($deriv_balance_kes)): ?>
-                                    <p class="text-white text-opacity-80 text-sm mt-1">
-                                        ≈ KES <?php echo number_format($deriv_balance_kes, 2); ?>
-                                    </p>
-                                <?php endif; ?>
+                                <p class="text-white text-opacity-80 text-xs mt-1">
+                                    Account: <?= $deriv_balance['account'] ?>
+                                    <?php if (isset($deriv_balance['stale'])): ?>
+                                        <span class="bg-yellow-500 text-white px-2 py-1 rounded ml-2">Cached</span>
+                                    <?php endif; ?>
+                                </p>
                             </div>
-                            <button onclick="refreshDerivBalance()" class="p-1 rounded-full bg-white bg-opacity-20 text-white hover:bg-opacity-30">
+                            <button id="refreshDerivBalance" class="p-2 rounded-full bg-white bg-opacity-20 text-white hover:bg-opacity-30">
                                 <i class="fas fa-sync-alt"></i>
                             </button>
                         </div>
-
-                        <!-- Display individual accounts if available -->
-                        <?php if (!empty($deriv_balance['accounts'])): ?>
-                            <div class="mt-4">
-                                <?php foreach ($deriv_balance['accounts'] as $account): ?>
-                                    <div class="flex justify-between items-center py-2 border-b border-white border-opacity-10">
-                                        <span class="text-white text-opacity-80 text-sm"><?php echo $account['loginid']; ?></span>
-                                        <span class="text-white font-medium">
-                                            <?php echo $account['currency'] . ' ' . number_format($account['balance'], 2); ?>
-                                        </span>
-                                    </div>
-                                <?php endforeach; ?>
-                            </div>
-                        <?php endif; ?>
                     </div>
-                </div>
-            <?php elseif (isset($deriv_balance['error'])): ?>
-                <div class="bg-red-50 dark:bg-red-900 dark:bg-opacity-20 border-l-4 border-red-400 text-red-700 dark:text-red-200 rounded p-4 mb-6">
-                    <div class="flex justify-between items-center">
-                        <p>Deriv balance error: <?php echo $deriv_balance['error']; ?></p>
-                        <button onclick="refreshDerivBalance()" class="ml-2 p-1 rounded-full hover:bg-red-100 dark:hover:bg-red-900">
-                            <i class="fas fa-sync-alt"></i>
-                        </button>
-                    </div>
+                    <?php if (isset($deriv_balance['error'])): ?>
+                        <div class="bg-red-500 bg-opacity-20 p-2 text-center">
+                            <p class="text-xs text-white"><?= $deriv_balance['error'] ?></p>
+                        </div>
+                    <?php endif; ?>
                 </div>
             <?php endif; ?>
+
+            // At the bottom of home.php
+            <script>
+                $(document).ready(function() {
+                    // Refresh Deriv balance
+                    $('#refreshDerivBalance').click(function() {
+                        const $icon = $(this).find('i');
+                        $icon.addClass('fa-spin');
+
+                        $.ajax({
+                            url: '<?= base_url('Main/refresh_deriv_balance') ?>',
+                            type: 'GET',
+                            dataType: 'json',
+                            success: function(response) {
+                                if (response.status === 'success') {
+                                    $('#derivBalanceAmount').html(
+                                        response.currency + ' ' + response.balance +
+                                        ' <span class="text-lg ml-2">(KES ' + response.balance_kes + ')</span>'
+                                    );
+
+                                    // Update account info if available
+                                    if (response.account) {
+                                        $('.deriv-account').text('Account: ' + response.account);
+                                    }
+
+                                    // Remove error if present
+                                    $('.deriv-error').remove();
+                                } else {
+                                    alert('Error: ' + response.message);
+                                }
+                            },
+                            error: function() {
+                                alert('Error refreshing balance');
+                            },
+                            complete: function() {
+                                $icon.removeClass('fa-spin');
+                            }
+                        });
+                    });
+                });
+            </script>
 
             <!--Flash Message -->
             <!-- Flash Message -->
@@ -706,62 +732,6 @@ if (!empty($checkout_token)) {
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <!-- jsPDF for PDF generation -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-
-    <script>
-        // Function to refresh Deriv balance
-        function refreshDerivBalance() {
-            // Show loading indicator
-            const balanceCard = document.querySelector('.bg-gradient-to-r.from-blue-600.to-indigo-500');
-            if (balanceCard) {
-                balanceCard.innerHTML = `
-            <div class="p-6 text-center">
-                <div class="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-white"></div>
-                <p class="mt-2 text-white">Updating balance...</p>
-            </div>
-        `;
-            }
-
-            // Make AJAX call to refresh balance
-            $.ajax({
-                url: '<?php echo base_url(); ?>Main/refresh_deriv_balance',
-                type: 'GET',
-                dataType: 'json',
-                success: function(response) {
-                    if (response.status === 'success') {
-                        // Reload the page to show updated balance
-                        location.reload();
-                    } else {
-                        alert('Error: ' + response.message);
-                        if (balanceCard) {
-                            balanceCard.innerHTML = `
-                        <div class="p-6 text-center">
-                            <i class="fas fa-exclamation-triangle text-yellow-400 text-2xl"></i>
-                            <p class="mt-2 text-white">${response.message}</p>
-                            <button onclick="refreshDerivBalance()" class="mt-2 px-3 py-1 bg-white bg-opacity-20 text-white rounded hover:bg-opacity-30">
-                                Retry
-                            </button>
-                        </div>
-                    `;
-                        }
-                    }
-                },
-                error: function(xhr, status, error) {
-                    alert('Error refreshing balance: ' + error);
-                    if (balanceCard) {
-                        balanceCard.innerHTML = `
-                    <div class="p-6 text-center">
-                        <i class="fas fa-exclamation-triangle text-yellow-400 text-2xl"></i>
-                        <p class="mt-2 text-white">Connection error</p>
-                        <button onclick="refreshDerivBalance()" class="mt-2 px-3 py-1 bg-white bg-opacity-20 text-white rounded hover:bg-opacity-30">
-                            Retry
-                        </button>
-                    </div>
-                `;
-                    }
-                }
-            });
-        }
-    </script>
 </body>
 
 </html>
