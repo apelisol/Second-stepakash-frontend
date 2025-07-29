@@ -282,70 +282,70 @@ class Main extends CI_Controller
     }
 
 
-    public function getDerivBalance()
-    {
-        header('Content-Type: application/json');
+    // public function getDerivBalance()
+    // {
+    //     header('Content-Type: application/json');
 
-        $session_id = $this->session->userdata('session_id');
-        if (!$session_id) {
-            echo json_encode(['status' => 'error', 'message' => 'Not authorized']);
-            return;
-        }
+    //     $session_id = $this->session->userdata('session_id');
+    //     if (!$session_id) {
+    //         echo json_encode(['status' => 'error', 'message' => 'Not authorized']);
+    //         return;
+    //     }
 
-        // Get user's Deriv token
-        $deriv_token = $this->session->userdata('deriv_token');
-        if (!$deriv_token) {
-            $this->load->model('User_model');
-            $user = $this->User_model->get_user_by_session($session_id);
-            $deriv_token = $user->deriv_token ?? null;
-        }
+    //     // Get user's Deriv token
+    //     $deriv_token = $this->session->userdata('deriv_token');
+    //     if (!$deriv_token) {
+    //         $this->load->model('User_model');
+    //         $user = $this->User_model->get_user_by_session($session_id);
+    //         $deriv_token = $user->deriv_token ?? null;
+    //     }
 
-        if (!$deriv_token) {
-            echo json_encode(['status' => 'error', 'message' => 'Deriv account not connected']);
-            return;
-        }
+    //     if (!$deriv_token) {
+    //         echo json_encode(['status' => 'error', 'message' => 'Deriv account not connected']);
+    //         return;
+    //     }
 
-        try {
-            $app_id = '76420'; // Your Deriv app ID
-            $websocket_url = "wss://ws.derivws.com/websockets/v3?app_id={$app_id}&brand=deriv";
+    //     try {
+    //         $app_id = '76420'; // Your Deriv app ID
+    //         $websocket_url = "wss://ws.derivws.com/websockets/v3?app_id={$app_id}&brand=deriv";
 
-            $socket = new WebSocket\Client($websocket_url);
+    //         $socket = new WebSocket\Client($websocket_url);
 
-            // Authenticate
-            $auth_request = ["authorize" => $deriv_token];
-            $socket->send(json_encode($auth_request));
-            $auth_response = json_decode($socket->receive(), true);
+    //         // Authenticate
+    //         $auth_request = ["authorize" => $deriv_token];
+    //         $socket->send(json_encode($auth_request));
+    //         $auth_response = json_decode($socket->receive(), true);
 
-            if (isset($auth_response['error'])) {
-                throw new Exception($auth_response['error']['message'] ?? 'Authorization failed');
-            }
+    //         if (isset($auth_response['error'])) {
+    //             throw new Exception($auth_response['error']['message'] ?? 'Authorization failed');
+    //         }
 
-            // Get balance
-            $balance_request = ["get_account_status" => 1];
-            $socket->send(json_encode($balance_request));
-            $balance_response = json_decode($socket->receive(), true);
+    //         // Get balance
+    //         $balance_request = ["get_account_status" => 1];
+    //         $socket->send(json_encode($balance_request));
+    //         $balance_response = json_decode($socket->receive(), true);
 
-            $socket->close();
+    //         $socket->close();
 
-            if (isset($balance_response['error'])) {
-                throw new Exception($balance_response['error']['message'] ?? 'Failed to get balance');
-            }
+    //         if (isset($balance_response['error'])) {
+    //             throw new Exception($balance_response['error']['message'] ?? 'Failed to get balance');
+    //         }
 
-            $balance = $balance_response['get_account_status']['balance'] ?? 0;
-            $currency = $balance_response['get_account_status']['currency'] ?? 'USD';
+    //         $balance = $balance_response['get_account_status']['balance'] ?? 0;
+    //         $currency = $balance_response['get_account_status']['currency'] ?? 'USD';
 
-            echo json_encode([
-                'status' => 'success',
-                'balance' => $balance,
-                'currency' => $currency
-            ]);
-        } catch (Exception $e) {
-            echo json_encode([
-                'status' => 'error',
-                'message' => $e->getMessage()
-            ]);
-        }
-    }
+    //         echo json_encode([
+    //             'status' => 'success',
+    //             'balance' => $balance,
+    //             'currency' => $currency
+    //         ]);
+    //     } catch (Exception $e) {
+    //         echo json_encode([
+    //             'status' => 'error',
+    //             'message' => $e->getMessage()
+    //         ]);
+    //     }
+    // }
 
     public function DepositFromMpesa()
     {
