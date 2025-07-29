@@ -1,25 +1,12 @@
-
-
 <?php
 $wallet_id = $this->session->userdata('wallet_id');
-
 $session_id = $this->session->userdata('session_id');
-
 $phone_session = $this->session->userdata('phone');
-
-
 $checkout_token = $this->session->userdata('checkout_token');
-
-
-if(!$wallet_id || !$session_id  || !$phone_session)
-
-{
-
+if (!$wallet_id || !$session_id  || !$phone_session) {
     redirect('logout');
-
 }
-if(!empty($checkout_token))
-{
+if (!empty($checkout_token)) {
     redirect('payment_form');
 }
 
@@ -27,6 +14,7 @@ if(!empty($checkout_token))
 
 <!doctype html>
 <html lang="en" data-theme="light">
+
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
@@ -59,24 +47,24 @@ if(!empty($checkout_token))
                 extend: {
                     colors: {
                         primary: {
-                            DEFAULT: '#059669', 
-                            dark: '#10b981',   
+                            DEFAULT: '#059669',
+                            dark: '#10b981',
                         },
                         secondary: {
                             DEFAULT: '#065f46', // Emerald-700
-                            dark: '#047857',    // Emerald-600
+                            dark: '#047857', // Emerald-600
                         },
                         accent: {
                             DEFAULT: '#b59a3e', // Custom gold
-                            dark: '#d4af37',    // Rich gold
+                            dark: '#d4af37', // Rich gold
                         },
                         dark: {
                             DEFAULT: '#1e293b', // Slate-800
-                            light: '#334155',   // Slate-700
+                            light: '#334155', // Slate-700
                         },
                         light: {
                             DEFAULT: '#f8fafc', // Slate-50
-                            dark: '#e2e8f0',    // Slate-200
+                            dark: '#e2e8f0', // Slate-200
                         }
                     },
                     fontFamily: {
@@ -95,12 +83,20 @@ if(!empty($checkout_token))
                     },
                     keyframes: {
                         float: {
-                            '0%, 100%': { transform: 'translateY(0)' },
-                            '50%': { transform: 'translateY(-10px)' },
+                            '0%, 100%': {
+                                transform: 'translateY(0)'
+                            },
+                            '50%': {
+                                transform: 'translateY(-10px)'
+                            },
                         },
                         shimmer: {
-                            '0%': { backgroundPosition: '-200% 0' },
-                            '100%': { backgroundPosition: '200% 0' },
+                            '0%': {
+                                backgroundPosition: '-200% 0'
+                            },
+                            '100%': {
+                                backgroundPosition: '200% 0'
+                            },
                         }
                     }
                 }
@@ -156,11 +152,11 @@ if(!empty($checkout_token))
                     <i class="fas fa-bars text-gray-600 dark:text-gray-300"></i>
                 </button>
             </div>
-            
+
             <div class="flex-1 flex justify-center">
                 <img src="<?php echo base_url() ?>assets/img/stepakash-home1.png" alt="Stepakash" class="h-8">
             </div>
-            
+
             <div class="flex items-center space-x-3">
                 <div class="relative">
                     <button id="profileToggle" class="flex items-center space-x-1 p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800">
@@ -171,7 +167,7 @@ if(!empty($checkout_token))
                             <span class="absolute -top-1 -right-1 w-4 h-4 bg-accent rounded-full flex items-center justify-center text-xs text-gray-800">✓</span>
                         <?php endif; ?>
                     </button>
-                    
+
                     <div id="profileDropdown" class="hidden absolute right-0 mt-2 w-64 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-100 dark:border-gray-700 z-50 overflow-hidden">
                         <div class="p-4 border-b border-gray-100 dark:border-gray-700">
                             <div class="flex items-center space-x-3">
@@ -195,7 +191,7 @@ if(!empty($checkout_token))
         </div>
     </header>
 
-   
+
     <!-- Sidebar -->
     <div id="sidebarOverlay" class="fixed inset-0 bg-black bg-opacity-50 z-40 hidden fade-transition opacity-0"></div>
 
@@ -213,13 +209,13 @@ if(!empty($checkout_token))
                         <p class="text-xs opacity-80">Wallet ID: <?php echo $this->session->userdata('wallet_id'); ?></p>
                     </div>
                 </div>
-            </div>  
+            </div>
             <!-- Sidebar Menu -->
             <nav class="flex-1 overflow-y-auto py-4">
                 <ul>
                     <li>
                         <a href="<?php echo base_url() ?>home" class="flex items-center px-6 py-3 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 transition-colors duration-200">
-                            <i class="fas fa-home mr-3 text-blue-500"></i> 
+                            <i class="fas fa-home mr-3 text-blue-500"></i>
                             <span>Home</span>
                         </a>
                     </li>
@@ -243,7 +239,7 @@ if(!empty($checkout_token))
                     </li>
                 </ul>
             </nav>
-            
+
             <!-- Sidebar Footer - Contact Info -->
             <div class="p-4 border-t border-gray-200 dark:border-gray-700">
                 <div class="flex flex-col space-y-3">
@@ -280,11 +276,22 @@ if(!empty($checkout_token))
                 <div class="p-6 relative z-10">
                     <div class="flex justify-between items-start">
                         <div>
-                            <p class="text-white text-opacity-90 text-sm">Total Balance</p>
+                            <p class="text-white text-opacity-90 text-sm">Wallet Balance</p>
                             <h2 id="balanceAmount" class="text-2xl font-bold text-white flex items-center">
                                 KES <?php echo number_format($total_balance, 2, '.', ','); ?>
                                 <img src="https://flagcdn.com/ke.svg" class="w-6 h-4 ml-2 rounded-sm shadow">
                             </h2>
+
+                            <p class="text-white text-opacity-90 text-sm mt-3">Deriv Balance</p>
+                            <div class="flex items-center">
+                                <h2 id="derivBalanceAmount" class="text-xl font-bold text-white flex items-center">
+                                    <span id="derivBalance">Loading...</span>
+                                    <span id="derivCurrency" class="ml-1"></span>
+                                </h2>
+                                <button id="refreshDerivBalance" class="ml-2 p-1 rounded-full bg-white bg-opacity-20 text-white">
+                                    <i class="fas fa-sync-alt text-xs"></i>
+                                </button>
+                            </div>
                         </div>
                         <button id="balanceToggle" class="p-1 rounded-full bg-white bg-opacity-20 text-white">
                             <i class="fas fa-eye"></i>
@@ -293,22 +300,22 @@ if(!empty($checkout_token))
                 </div>
                 <div class="bg-white bg-opacity-10 p-4 flex justify-between items-center">
                     <span class="text-white text-sm">
-                        Last updated: 
+                        Last updated:
                         <?php
-                            date_default_timezone_set('Africa/Nairobi');
-                            echo date('H:i');
+                        date_default_timezone_set('Africa/Nairobi');
+                        echo date('H:i');
                         ?>
                         <br>
-                       
+
                     </span>
                     <button class="text-white text-sm flex items-center">
                         <?php echo $this->session->userdata('phone'); ?>
                     </button>
-                </div> 
+                </div>
             </div>
 
-           <!--Flash Message -->
-             <!-- Flash Message -->
+            <!--Flash Message -->
+            <!-- Flash Message -->
             <?php if ($flash = $this->session->flashdata('msg')) : ?>
                 <div id="flashMessage" class="mb-6 p-4 bg-yellow-50 dark:bg-yellow-900 dark:bg-opacity-20 border-l-4 border-yellow-400 text-yellow-700 dark:text-yellow-200 rounded">
                     <div class="flex justify-between items-center">
@@ -370,7 +377,7 @@ if(!empty($checkout_token))
                 <div class="divide-y divide-gray-100 dark:divide-gray-700">
                     <?php if ($transactions) : ?>
                         <?php
-                            $recent_transactions = array_slice($transactions, 0, 10);
+                        $recent_transactions = array_slice($transactions, 0, 10);
                         ?>
                         <?php foreach ($recent_transactions as $trans) : ?>
                             <button data-modal-target="#transactionModal" data-modal-toggle="transactionModal" data-transaction-id="<?php echo $trans['transaction_number']; ?>" class="w-full p-4 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors cursor-pointer text-left">
@@ -398,7 +405,8 @@ if(!empty($checkout_token))
                         </div>
                     <?php endif; ?>
                 </div>
-            </div>  </div>
+            </div>
+        </div>
     </main>
 
     <!-- Bottom Navigation -->
@@ -584,7 +592,7 @@ if(!empty($checkout_token))
                     <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
                         Withdraw from Deriv
                     </h3>
-                    
+
                     <button type="button" class="text-gray-400 bg-transparent hover:bg-gray-200 hover:text-gray-900 rounded-lg text-sm w-8 h-8 ms-auto inline-flex justify-center items-center dark:hover:bg-gray-600 dark:hover:text-white" data-modal-hide="withdrawModal">
                         <i class="fas fa-times"></i>
                         <span class="sr-only">Close modal</span>
@@ -652,6 +660,56 @@ if(!empty($checkout_token))
 
     <!-- Flowbite JS for modals -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/flowbite/2.3.0/flowbite.min.js"></script>
+    <script>
+        $(document).ready(function() {
+            // Fetch Deriv balance on page load
+            fetchDerivBalance();
+
+            // Refresh button click handler
+            $('#refreshDerivBalance').click(function() {
+                fetchDerivBalance();
+            });
+
+            // Function to fetch Deriv balance
+            function fetchDerivBalance() {
+                $('#derivBalance').html('<i class="fas fa-spinner fa-spin"></i>');
+
+                $.ajax({
+                    url: '<?php echo base_url("Main/getDerivBalance"); ?>',
+                    type: 'GET',
+                    dataType: 'json',
+                    success: function(response) {
+                        if (response.status === 'success') {
+                            $('#derivBalance').text(response.balance.toFixed(2));
+                            $('#derivCurrency').text(response.currency);
+                        } else {
+                            $('#derivBalance').text('Error');
+                            $('#derivCurrency').text('');
+                            console.error(response.message);
+                        }
+                    },
+                    error: function(xhr, status, error) {
+                        $('#derivBalance').text('Error');
+                        $('#derivCurrency').text('');
+                        console.error(error);
+                    }
+                });
+            }
+
+            // Balance toggle functionality
+            let balanceVisible = true;
+            $('#balanceToggle').click(function() {
+                balanceVisible = !balanceVisible;
+                if (balanceVisible) {
+                    $('#balanceAmount').text('KES <?php echo number_format($total_balance, 2, '.', ','); ?>');
+                    $(this).html('<i class="fas fa-eye"></i>');
+                } else {
+                    $('#balanceAmount').text('KES ••••••');
+                    $(this).html('<i class="fas fa-eye-slash"></i>');
+                }
+            });
+        });
+    </script>
     <!-- jQuery -->
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <!-- html2canvas for printing -->
@@ -659,4 +717,5 @@ if(!empty($checkout_token))
     <!-- jsPDF for PDF generation -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </body>
+
 </html>
