@@ -177,6 +177,7 @@ class Main extends CI_Controller
         }
     }
 
+    // Frontend Controller
     public function refresh_deriv_balance()
     {
         header('Content-Type: application/json');
@@ -194,24 +195,31 @@ class Main extends CI_Controller
 
         $balance = $this->getDerivBalance($deriv_token);
 
-        if ($balance === null) {
-            echo json_encode(['status' => 'error', 'message' => 'Failed to fetch balance']);
-            return;
+        // Calculate KES equivalent
+        $balance_kes = 0;
+        if (isset($balance['balance']) && isset($this->data['buyrate'])) {
+            $balance_kes = $balance['balance'] * $this->data['buyrate'];
         }
 
-        // Get current rates to calculate KES equivalent
-        $rates = $this->get_rates();
-        $balance_kes = $balance['balance'] * $rates['deriv_buy'];
-
-        echo json_encode([
-            'status' => 'success',
-            'balance' => number_format($balance['balance'], 2),
-            'currency' => $balance['currency'],
-            'balance_kes' => number_format($balance_kes, 2),
-            'account' => $balance['account']
-        ]);
+        if (isset($balance['error'])) {
+            echo json_encode([
+                'status' => 'error',
+                'message' => $balance['error'],
+                'balance' => number_format($balance['balance'], 2),
+                'currency' => $balance['currency'],
+                'balance_kes' => number_format($balance_kes, 2),
+                'account' => $balance['account'] ?? ''
+            ]);
+        } else {
+            echo json_encode([
+                'status' => 'success',
+                'balance' => number_format($balance['balance'], 2),
+                'currency' => $balance['currency'],
+                'balance_kes' => number_format($balance_kes, 2),
+                'account' => $balance['account']
+            ]);
+        }
     }
-
     public function transactions()
     {
         $url = APP_INSTANCE . 'home_data';
