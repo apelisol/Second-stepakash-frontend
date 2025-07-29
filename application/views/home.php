@@ -276,22 +276,11 @@ if (!empty($checkout_token)) {
                 <div class="p-6 relative z-10">
                     <div class="flex justify-between items-start">
                         <div>
-                            <p class="text-white text-opacity-90 text-sm">Wallet Balance</p>
+                            <p class="text-white text-opacity-90 text-sm">Total Balance</p>
                             <h2 id="balanceAmount" class="text-2xl font-bold text-white flex items-center">
                                 KES <?php echo number_format($total_balance, 2, '.', ','); ?>
                                 <img src="https://flagcdn.com/ke.svg" class="w-6 h-4 ml-2 rounded-sm shadow">
                             </h2>
-
-                            <p class="text-white text-opacity-90 text-sm mt-3">Deriv Balance</p>
-                            <div class="flex items-center">
-                                <h2 id="derivBalanceAmount" class="text-xl font-bold text-white flex items-center">
-                                    <span id="derivBalance">Loading...</span>
-                                    <span id="derivCurrency" class="ml-1"></span>
-                                </h2>
-                                <button id="refreshDerivBalance" class="ml-2 p-1 rounded-full bg-white bg-opacity-20 text-white">
-                                    <i class="fas fa-sync-alt text-xs"></i>
-                                </button>
-                            </div>
                         </div>
                         <button id="balanceToggle" class="p-1 rounded-full bg-white bg-opacity-20 text-white">
                             <i class="fas fa-eye"></i>
@@ -311,6 +300,56 @@ if (!empty($checkout_token)) {
                     <button class="text-white text-sm flex items-center">
                         <?php echo $this->session->userdata('phone'); ?>
                     </button>
+                </div>
+            </div>
+
+            <!-- Deriv Balance Card -->
+            <div class="bg-gradient-to-br from-blue-600 to-blue-800 rounded-xl shadow-lg overflow-hidden mb-6 relative" id="derivBalanceCard">
+                <div class="absolute inset-0 bg-gradient-to-br from-white to-transparent opacity-10"></div>
+                <div class="p-6 relative z-10">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <div class="flex items-center">
+                                <p class="text-white text-opacity-90 text-sm mr-2">Deriv Account Balance</p>
+                                <button id="refreshDerivBalance" class="text-white hover:text-blue-200">
+                                    <i class="fas fa-sync-alt text-xs"></i>
+                                </button>
+                            </div>
+                            <h2 class="text-2xl font-bold text-white flex items-center mt-1">
+                                <?php if (isset($deriv_balance) && isset($deriv_balance['balance'])): ?>
+                                    <?php echo $deriv_balance['currency']; ?> <?php echo number_format($deriv_balance['balance'], 2); ?>
+                                <?php else: ?>
+                                    Not Connected
+                                <?php endif; ?>
+                            </h2>
+                            <?php if (isset($deriv_balance_kes)): ?>
+                                <p class="text-white text-opacity-80 text-xs mt-1">
+                                    ≈ KES <?php echo number_format($deriv_balance_kes, 2); ?>
+                                </p>
+                            <?php endif; ?>
+                        </div>
+                        <div>
+                            <?php if ($this->session->userdata('deriv_token')): ?>
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                    Connected
+                                </span>
+                            <?php else: ?>
+                                <a href="<?php echo base_url() ?>Auth/derivauth" class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 hover:bg-yellow-200">
+                                    Connect Account
+                                </a>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-white bg-opacity-10 p-4 flex justify-between items-center">
+                    <span class="text-white text-sm">
+                        Deriv USD Account
+                    </span>
+                    <?php if ($this->session->userdata('deriv_account_number')): ?>
+                        <span class="text-white text-sm font-mono">
+                            <?php echo $this->session->userdata('deriv_account_number'); ?>
+                        </span>
+                    <?php endif; ?>
                 </div>
             </div>
 
@@ -662,52 +701,52 @@ if (!empty($checkout_token)) {
     <script src="https://cdnjs.cloudflare.com/ajax/libs/flowbite/2.3.0/flowbite.min.js"></script>
     <script>
         $(document).ready(function() {
-            // Fetch Deriv balance on page load
-            fetchDerivBalance();
+            // Refresh Deriv balance
+            $('#refreshDerivBalance').click(function(e) {
+                e.preventDefault();
+                var button = $(this);
 
-            // Refresh button click handler
-            $('#refreshDerivBalance').click(function() {
-                fetchDerivBalance();
-            });
-
-            // Function to fetch Deriv balance
-            function fetchDerivBalance() {
-                $('#derivBalance').html('<i class="fas fa-spinner fa-spin"></i>');
+                // Add spinning animation
+                button.addClass('animate-spin');
 
                 $.ajax({
-                    url: '<?php echo base_url("Main/getDerivBalance"); ?>',
+                    url: '<?php echo base_url() ?>Main/refresh_deriv_balance',
                     type: 'GET',
                     dataType: 'json',
                     success: function(response) {
                         if (response.status === 'success') {
-                            $('#derivBalance').text(response.balance.toFixed(2));
-                            $('#derivCurrency').text(response.currency);
+                            // Update balance display
+                            $('#derivBalanceCard h2').text(response.currency + ' ' + response.balance);
+                            $('#derivBalanceCard p').text('≈ KES ' + response.balance_kes);
+
+                            // Show success notification
+                            showToast('Balance refreshed successfully', 'success');
                         } else {
-                            $('#derivBalance').text('Error');
-                            $('#derivCurrency').text('');
-                            console.error(response.message);
+                            showToast(response.message, 'error');
                         }
                     },
-                    error: function(xhr, status, error) {
-                        $('#derivBalance').text('Error');
-                        $('#derivCurrency').text('');
-                        console.error(error);
+                    error: function() {
+                        showToast('Error refreshing balance', 'error');
+                    },
+                    complete: function() {
+                        button.removeClass('animate-spin');
                     }
                 });
-            }
-
-            // Balance toggle functionality
-            let balanceVisible = true;
-            $('#balanceToggle').click(function() {
-                balanceVisible = !balanceVisible;
-                if (balanceVisible) {
-                    $('#balanceAmount').text('KES <?php echo number_format($total_balance, 2, '.', ','); ?>');
-                    $(this).html('<i class="fas fa-eye"></i>');
-                } else {
-                    $('#balanceAmount').text('KES ••••••');
-                    $(this).html('<i class="fas fa-eye-slash"></i>');
-                }
             });
+
+            // Helper function for notifications
+            function showToast(message, type) {
+                const toast = document.createElement('div');
+                toast.className = `fixed bottom-4 right-4 px-4 py-2 rounded shadow-lg text-white ${
+                    type === 'success' ? 'bg-green-500' : 'bg-red-500'
+                }`;
+                toast.textContent = message;
+                document.body.appendChild(toast);
+
+                setTimeout(() => {
+                    toast.remove();
+                }, 3000);
+            }
         });
     </script>
     <!-- jQuery -->

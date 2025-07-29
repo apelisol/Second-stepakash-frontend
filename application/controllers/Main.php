@@ -76,14 +76,138 @@ class Main extends CI_Controller
             $this->session->set_flashdata('msg', $message);
             redirect('logout');
         } elseif ($status == 'success' || $status == 'error') {
-            $response = $data;
+            // Get Deriv balance if account is connected
+            $deriv_token = $this->session->userdata('deriv_token');
+            if ($deriv_token) {
+                $deriv_balance = $this->getDerivBalance($deriv_token);
+                $data['deriv_balance'] = $deriv_balance;
+
+                // Calculate equivalent KES value using buy rate
+                if ($deriv_balance && isset($deriv_balance['balance'])) {
+                    $data['deriv_balance_kes'] = $deriv_balance['balance'] * $data['buyrate'];
+                }
+            }
+
             $this->load->view('includes/header');
-            $this->load->view('home', $response);
-            $this->load->view('includes/footer', $response);
+            $this->load->view('home', $data);
+            $this->load->view('includes/footer', $data);
         } else {
             $this->session->set_flashdata('msg', 'something went wrong');
             redirect('logout');
         }
+    }
+
+    private function getDerivBalance($token)
+    {
+        // Check for cached balance first (valid for 1 minute)
+        $cacheKey = 'deriv_balance_' . md5($token);
+        $cached = $this->cache->get($cacheKey);
+
+        if ($cached !== false) {
+            return $cached;
+        }
+
+        try {
+            $appId = 76420;
+            $url = "wss://ws.derivws.com/websockets/v3?app_id={$appId}";
+
+            $options = [
+                'timeout' => 5,
+                'headers' => ['Origin' => base_url()],
+                'context' => stream_context_create([
+                    'ssl' => [
+                        'verify_peer' => false,
+                        'verify_peer_name' => false,
+                    ],
+                ]),
+            ];
+
+            $client = new \WebSocket\Client($url, $options);
+
+            // Step 1: Authorize
+            $client->send(json_encode(["authorize" => $token]));
+            $authResponse = json_decode($client->receive(), true);
+
+            if (isset($authResponse['error'])) {
+                throw new Exception('Authorization failed: ' . $authResponse['error']['message']);
+            }
+
+            // Step 2: Get balance
+            $client->send(json_encode([
+                "balance" => 1,
+                "subscribe" => 0 // Don't subscribe, just get current balance
+            ]));
+
+            $balanceResponse = json_decode($client->receive(), true);
+            $client->close();
+
+            if (!isset($balanceResponse['balance'])) {
+                throw new Exception('Invalid balance response');
+            }
+
+            $result = [
+                'balance' => $balanceResponse['balance']['balance'],
+                'currency' => $balanceResponse['balance']['currency'] ?? 'USD',
+                'account' => $authResponse['authorize']['loginid'],
+                'timestamp' => time()
+            ];
+
+            // Cache the result for 1 minute
+            $this->cache->save($cacheKey, $result, 60);
+
+            return $result;
+        } catch (Exception $e) {
+            log_message('error', 'Deriv API Error: ' . $e->getMessage());
+
+            // Return cached data if available, even if expired
+            $staleCache = $this->cache->get($cacheKey);
+            if ($staleCache !== false) {
+                $staleCache['stale'] = true;
+                return $staleCache;
+            }
+
+            return [
+                'error' => $e->getMessage(),
+                'balance' => 0,
+                'currency' => 'USD'
+            ];
+        }
+    }
+
+
+    public function refresh_deriv_balance()
+    {
+        header('Content-Type: application/json');
+
+        if (!$this->input->is_ajax_request()) {
+            echo json_encode(['status' => 'error', 'message' => 'Invalid request']);
+            return;
+        }
+
+        $deriv_token = $this->session->userdata('deriv_token');
+        if (!$deriv_token) {
+            echo json_encode(['status' => 'error', 'message' => 'No Deriv account connected']);
+            return;
+        }
+
+        $balance = $this->getDerivBalance($deriv_token);
+
+        if ($balance === null) {
+            echo json_encode(['status' => 'error', 'message' => 'Failed to fetch balance']);
+            return;
+        }
+
+        // Get current rates to calculate KES equivalent
+        $rates = $this->get_rates();
+        $balance_kes = $balance['balance'] * $rates['deriv_buy'];
+
+        echo json_encode([
+            'status' => 'success',
+            'balance' => number_format($balance['balance'], 2),
+            'currency' => $balance['currency'],
+            'balance_kes' => number_format($balance_kes, 2),
+            'account' => $balance['account']
+        ]);
     }
 
     public function transactions()

@@ -5,7 +5,6 @@ class Auth extends CI_Controller
     {
         parent::__construct();
         $this->load->model('Operations');
-        
     }
 
     // ==================== VIEW METHODS ====================
@@ -20,34 +19,34 @@ class Auth extends CI_Controller
      * This method loads the Deriv authorization page.
      * It is used to initiate the Deriv OAuth process.
      */
-    
+
     public function derivauth()
     {
         $this->load->view('derivauth');
     }
 
-   /**
+    /**
      * Updated Signup method to handle Deriv data properly
      */
     public function Signup()
     {
         $data = [];
-        
+
         // Check for Deriv auth success in URL
         $deriv_auth = $this->input->get('deriv_auth');
-        
+
         if ($deriv_auth === 'success') {
             // Get Deriv data from session
             $deriv_data = $this->session->userdata('deriv_data');
-            
+
             if ($deriv_data) {
                 $data['deriv_data'] = $deriv_data;
-                
+
                 // If we have multiple accounts, pass them to the view
                 if (!empty($deriv_data['all_deriv_accounts'])) {
                     $data['deriv_accounts'] = $deriv_data['all_deriv_accounts'];
                 }
-                
+
                 // Debug: Log the data being passed to view
                 log_message('debug', 'Deriv data passed to signup view: ' . print_r($deriv_data, true));
             } else {
@@ -59,7 +58,7 @@ class Auth extends CI_Controller
             // Handle direct access to signup page (check if coming from callback with params)
             $acct1 = $this->input->get('acct1');
             $token1 = $this->input->get('token1');
-            
+
             if ($acct1 && $token1) {
                 // This means we're coming directly from Deriv callback with params in URL
                 // Process the callback data here
@@ -67,7 +66,7 @@ class Auth extends CI_Controller
                 return; // processDerivCallback will handle the redirect
             }
         }
-        
+
         $this->load->view('signup', $data);
     }
 
@@ -80,12 +79,12 @@ class Auth extends CI_Controller
         // Extract account data from URL parameters
         $accounts = [];
         $i = 1;
-        
+
         // Loop through all possible account parameters
         while ($this->input->get("acct$i") && $this->input->get("token$i")) {
             $account_number = $this->input->get("acct$i");
             $currency = $this->input->get("cur$i") ?: 'USD';
-            
+
             // Only process USD accounts that are not demo accounts (check for CR prefix)
             if (strtoupper($currency) === 'USD' && strpos($account_number, 'CR') === 0) {
                 $accounts[] = [
@@ -106,7 +105,7 @@ class Auth extends CI_Controller
 
         $primary_account = $accounts[0];
         $additional_info = $this->getDerivAccountInfo($primary_account['token']);
-        
+
         $deriv_data = [
             'deriv_token' => $primary_account['token'],
             'deriv_login_id' => $primary_account['account_number'],
@@ -117,7 +116,7 @@ class Auth extends CI_Controller
             'fullname' => $additional_info['fullname'] ?? '',
             'is_real_account' => true // Explicitly mark as real account
         ];
-        
+
         $this->session->set_userdata('deriv_data', $deriv_data);
         redirect(base_url('Auth/Signup?deriv_auth=success'));
     }
@@ -193,8 +192,8 @@ class Auth extends CI_Controller
     }
 
     /**
-    * Handle user account creation
-    */
+     * Handle user account creation
+     */
     public function CreateAccount()
     {
         $url = APP_INSTANCE . 'signup';
@@ -203,7 +202,7 @@ class Auth extends CI_Controller
         $password = $this->input->post('password');
         $confirmpassword = $this->input->post('confirmpassword');
         $account_number = $this->input->post('account_number');
-        
+
         // Get optional Deriv data
         $deriv_account = $this->input->post('deriv_account');
         $deriv_token = $this->input->post('deriv_token');
@@ -223,23 +222,23 @@ class Auth extends CI_Controller
         if (!empty($deriv_account)) {
             $body['deriv_account'] = $deriv_account;
         }
-        
+
         if (!empty($deriv_token)) {
             $body['deriv_token'] = $deriv_token;
         }
-        
+
         if (!empty($deriv_email)) {
             $body['deriv_email'] = $deriv_email;
         }
-        
+
         if (!empty($deriv_login_id)) {
             $body['deriv_login_id'] = $deriv_login_id;
         }
-        
+
         if (!empty($deriv_account_number)) {
             $body['deriv_account_number'] = $deriv_account_number;
         }
-        
+
         if (!empty($fullname)) {
             $body['fullname'] = $fullname;
         }
@@ -285,15 +284,15 @@ class Auth extends CI_Controller
     }
 
     /**
-    * Initiate Deriv OAuth process
-    * FIXED: Ensure correct redirect URI
-    */
+     * Initiate Deriv OAuth process
+     * FIXED: Ensure correct redirect URI
+     */
     public function DerivOAuth()
     {
         header('Content-Type: application/json');
-        
+
         $response = array();
-        
+
         if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
             http_response_code(400);
             $response['status'] = 'fail';
@@ -301,16 +300,16 @@ class Auth extends CI_Controller
             echo json_encode($response);
             return;
         }
-        
+
         // Deriv OAuth configuration
-        $app_id = '76420'; 
-        $redirect_uri = base_url() . 'Auth/DerivCallback'; 
-        $scope = 'read,trade,trading_information,payments'; 
-        $state = bin2hex(random_bytes(16)); 
-        
+        $app_id = '76420';
+        $redirect_uri = base_url() . 'Auth/DerivCallback';
+        $scope = 'read,trade,trading_information,payments';
+        $state = bin2hex(random_bytes(16));
+
         // Store state in session for validation
         $this->session->set_userdata('oauth_state', $state);
-        
+
         // Deriv OAuth URL
         $oauth_url = "https://oauth.deriv.com/oauth2/authorize?" . http_build_query([
             'app_id' => $app_id,
@@ -319,14 +318,14 @@ class Auth extends CI_Controller
             'scope' => $scope,
             'state' => $state
         ]);
-        
+
         $response['status'] = 'success';
         $response['oauth_url'] = $oauth_url;
-        
+
         echo json_encode($response);
     }
 
-   /**
+    /**
      * Handle Deriv OAuth callback
      * Updated to filter for USD accounts only and exclude demo accounts
      */
@@ -335,22 +334,22 @@ class Auth extends CI_Controller
         // Verify state first
         $received_state = $this->input->get('state');
         $stored_state = $this->session->userdata('oauth_state');
-        
+
         if ($received_state !== $stored_state) {
             $this->session->set_flashdata('msg', 'Invalid state parameter');
             redirect(base_url('Auth/Signup'));
             return;
         }
-        
+
         // Extract account data from URL parameters
         $accounts = [];
         $i = 1;
-        
+
         // Loop through all possible account parameters
         while ($this->input->get("acct$i") && $this->input->get("token$i")) {
             $account_number = $this->input->get("acct$i");
             $currency = $this->input->get("cur$i") ?: 'USD';
-            
+
             // Only process USD accounts that are not demo accounts (check for CR prefix)
             if (strtoupper($currency) === 'USD' && strpos($account_number, 'CR') === 0) {
                 $accounts[] = [
@@ -371,7 +370,7 @@ class Auth extends CI_Controller
 
         $primary_account = $accounts[0];
         $additional_info = $this->getDerivAccountInfo($primary_account['token']);
-        
+
         $deriv_data = [
             'deriv_token' => $primary_account['token'],
             'deriv_login_id' => $primary_account['account_number'],
@@ -382,7 +381,7 @@ class Auth extends CI_Controller
             'fullname' => $additional_info['fullname'] ?? '',
             'is_real_account' => true // Explicitly mark as real account
         ];
-        
+
         $this->session->set_userdata('deriv_data', $deriv_data);
         $this->session->unset_userdata('oauth_state');
         redirect(base_url('Auth/Signup?deriv_auth=success'));
@@ -398,34 +397,34 @@ class Auth extends CI_Controller
         try {
             // Use WebSocket API to get account information
             $url = 'wss://ws.derivws.com/websockets/v3?app_id=76420';
-            
+
             // For HTTP API approach (alternative)
             $post_data = json_encode([
                 'get_settings' => 1,
                 'req_id' => 1
             ]);
-            
+
             $headers = [
                 'Content-Type: application/json',
                 'Authorization: Bearer ' . $token
             ];
-            
+
             $ch = curl_init();
             curl_setopt($ch, CURLOPT_URL, 'https://api.deriv.com/api/v1/');
             curl_setopt($ch, CURLOPT_POST, true);
             curl_setopt($ch, CURLOPT_POSTFIELDS, $post_data);
-                        curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
             curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
             curl_setopt($ch, CURLOPT_TIMEOUT, 10);
-            
+
             $response = curl_exec($ch);
             $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
             curl_close($ch);
-            
+
             if ($http_code === 200 && $response) {
                 $data = json_decode($response, true);
-                
+
                 if (isset($data['get_settings'])) {
                     return [
                         'email' => $data['get_settings']['email'] ?? '',
@@ -435,18 +434,17 @@ class Auth extends CI_Controller
                     ];
                 }
             }
-            
+
             return [];
-            
         } catch (Exception $e) {
             log_message('error', 'Failed to get Deriv account info: ' . $e->getMessage());
             return [];
         }
     }
-        
-   
 
-   /**
+
+
+    /**
      * Get Deriv session data after successful auth
      * FIXED: This method should return the session data stored during callback
      */
@@ -454,10 +452,10 @@ class Auth extends CI_Controller
     {
         // Set JSON header
         header('Content-Type: application/json');
-        
+
         // Get Deriv data from session (stored during callback)
         $deriv_data = $this->session->userdata('deriv_data');
-        
+
         if ($deriv_data) {
             echo json_encode([
                 'status' => 'success',
@@ -484,11 +482,11 @@ class Auth extends CI_Controller
 
         $response = $this->Operations->CurlPost($url, $body);
         $decode = json_decode($response, true);
-        
+
         $status = $decode['status'];
         $message = $decode['message'];
         $data = $decode['data'];
-        
+
         $this->session->set_flashdata('msg', $message);
 
         if ($status == 'fail') {
@@ -513,11 +511,11 @@ class Auth extends CI_Controller
 
         $response = $this->Operations->CurlPost($url, $body);
         $decode = json_decode($response, true);
-        
+
         $status = $decode['status'];
         $message = $decode['message'];
         $data = $decode['data'];
-        
+
         $this->session->set_flashdata('msg', $message);
 
         if ($status == 'fail') {
@@ -531,7 +529,7 @@ class Auth extends CI_Controller
         }
     }
 
-    public function updatepassword()//function to update password 
+    public function updatepassword() //function to update password 
     {
         $url = APP_INSTANCE . 'updatepassword';
         $pass1 = $this->input->post('password');
@@ -548,7 +546,7 @@ class Auth extends CI_Controller
 
         $response = $this->Operations->CurlPost($url, $body);
         $decode = json_decode($response, true);
-        
+
         $status = $decode['status'];
         $message = $decode['message'];
 
@@ -668,7 +666,7 @@ class Auth extends CI_Controller
         $signature = hash_hmac('SHA256', "$headers_encoded.$payload_encoded", $secret, true);
         $signature_encoded = $this->base64url_encode($signature);
         $jwt = "$headers_encoded.$payload_encoded.$signature_encoded";
-        
+
         return $jwt;
     }
 
