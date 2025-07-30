@@ -151,106 +151,45 @@ class Auth extends CI_Controller
 
     public function Login()
     {
-        try {
-            // Temporary debugging output
-            log_message('debug', 'Login attempt started');
+        $url = APP_INSTANCE . 'login';
+        $phone = $this->input->post('phone');
+        $password = $this->input->post('password');
+        $ip_address = $this->getUserIP();
 
-            $url = APP_INSTANCE . 'login';
-            $phone = $this->input->post('phone');
-            $password = $this->input->post('password');
-            $ip_address = $this->getUserIP();
+        $body = array(
+            'phone' => $phone,
+            'password' => $password,
+            'ip_address' => $ip_address,
+        );
 
-            // Debug input values
-            log_message('debug', "Login attempt - Phone: $phone, IP: $ip_address");
+        $response = $this->Operations->CurlPost($url, $body);
+        $decode = json_decode($response, true);
 
-            $body = array(
-                'phone' => $phone,
-                'password' => $password,
-                'ip_address' => $ip_address,
-            );
+        log_message('error', 'Login API Response: ' . print_r($decode, true));
 
-            $response = $this->Operations->CurlPost($url, $body);
+        $status = isset($decode['status']) ? $decode['status'] : null;
+        $message = isset($decode['message']) ? $decode['message'] : 'Unknown error';
+        $data = isset($decode['data']) ? $decode['data'] : null;
 
-            // Debug raw response
-            log_message('debug', "Login API raw response: " . print_r($response, true));
+        $this->session->set_flashdata('msg', $message);
 
-            if (empty($response)) {
-                throw new Exception('Empty response from login API');
-            }
-
-            $decode = json_decode($response, true);
-
-            if ($decode === null) {
-                throw new Exception('Invalid JSON response: ' . $response);
-            }
-
-            $status = $decode['status'] ?? 'error';
-            $message = $decode['message'] ?? 'Unknown error';
-            $data = $decode['data'] ?? [];
-
-            log_message('debug', "Login API decoded: Status - $status, Message - $message");
-
-            if ($status == 'fail') {
-                $this->session->set_flashdata('msg', $message);
-                log_message('error', "Login failed: $message");
-                redirect('login');
-            } elseif ($status == 'success') {
-                if ($data) {
-                    // Store session data
-                    $session_data = [
-                        'id' => $data['id'] ?? null,
-                        'wallet_id' => $data['wallet_id'] ?? null,
-                        'account_number' => $data['account_number'] ?? null,
-                        'phone' => $data['phone'] ?? null,
-                        'agent' => $data['agent'] ?? 0,
-                        'session_id' => $data['session_id'] ?? null,
-                        'created_on' => $data['created_on'] ?? null,
-                        'deriv_token' => $data['deriv_token'] ?? null,
-                        'deriv_token_expiry' => $data['deriv_token_expiry'] ?? 0
-                    ];
-
-                    $this->session->set_userdata($session_data);
-                    $this->debugSession(); // TEMPORARY - REMOVE AFTER FIXING
-                    log_message('debug', 'Session data set: ' . print_r($session_data, true));
-
-                    // Debug session data
-                    log_message('debug', 'Session data set: ' . print_r($session_data, true));
-                    log_message('info', "Login successful for: {$phone}");
-
-                    redirect('home');
-                } else {
-                    log_message('error', 'Login API success but no data: ' . print_r($decode, true));
-                    $this->session->set_flashdata('msg', 'System error. Please contact support.');
-                    redirect('login');
-                }
+        if ($status === 'fail') {
+            redirect(base_url());
+        } elseif ($status === 'success') {
+            if ($data) {
+                $this->session->set_userdata($data);
+                redirect('home');
             } else {
-                log_message('error', 'Unexpected status in login API: ' . print_r($decode, true));
-                $this->session->set_flashdata('msg', 'Unexpected system response. Please try again.');
-                redirect('login');
+                log_message('error', 'Login API returned success but no data: ' . print_r($decode, true));
+                $this->session->set_flashdata('msg', 'Something went wrong');
+                redirect(base_url());
             }
-        } catch (Exception $e) {
-            log_message('error', 'Login controller exception: ' . $e->getMessage());
-            log_message('debug', 'Trace: ' . $e->getTraceAsString());
-
-            $this->session->set_flashdata('msg', 'System error. Please try again.');
-            redirect('login');
+        } else {
+            log_message('error', 'Unexpected status in Login API: ' . $status);
+            $this->session->set_flashdata('msg', 'Please try again');
+            redirect(base_url());
         }
     }
-
-    private function debugSession()
-    {
-        // Temporary debug output - remove after fixing
-        echo '<pre>';
-        echo 'SESSION STATUS: ' . session_status() . PHP_EOL;
-        echo 'SESSION ID: ' . session_id() . PHP_EOL;
-        echo 'SESSION DATA: ' . print_r($this->session->userdata(), true);
-        echo 'COOKIE DATA: ' . print_r($_COOKIE, true);
-        echo '</pre>';
-        exit();
-    }
-
-
-
 
     /**
      * Handle user account creation

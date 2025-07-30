@@ -303,44 +303,6 @@ if (!empty($checkout_token)) {
                 </div>
             </div>
 
-            <!-- application/views/home.php -->
-            <!-- After the main balance card -->
-            <?php if (isset($deriv_balance) && is_array($deriv_balance)): ?>
-                <!-- Deriv Balance Card -->
-                <div class="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl shadow-lg overflow-hidden mb-6 relative">
-                    <div class="absolute inset-0 bg-gradient-to-br from-white to-transparent opacity-10"></div>
-                    <div class="p-6 relative z-10">
-                        <div class="flex justify-between items-start">
-                            <div>
-                                <p class="text-white text-opacity-90 text-sm">Deriv Balance</p>
-                                <h2 id="derivBalanceAmount" class="text-2xl font-bold text-white flex items-center">
-                                    <?= $deriv_balance['currency'] ?> <?= number_format($deriv_balance['balance'], 2) ?>
-                                    <?php if (isset($deriv_balance_kes)): ?>
-                                        <span class="text-lg ml-2">(KES <?= number_format($deriv_balance_kes, 2) ?>)</span>
-                                    <?php endif; ?>
-                                </h2>
-                                <p class="text-white text-opacity-80 text-xs mt-1">
-                                    Account: <?= $deriv_balance['account'] ?>
-                                    <?php if (isset($deriv_balance['stale'])): ?>
-                                        <span class="bg-yellow-500 text-white px-2 py-1 rounded ml-2">Cached</span>
-                                    <?php endif; ?>
-                                </p>
-                            </div>
-                            <button id="refreshDerivBalance" class="p-2 rounded-full bg-white bg-opacity-20 text-white hover:bg-opacity-30">
-                                <i class="fas fa-sync-alt"></i>
-                            </button>
-                        </div>
-                    </div>
-                    <?php if (isset($deriv_balance['error'])): ?>
-                        <div class="bg-red-500 bg-opacity-20 p-2 text-center">
-                            <p class="text-xs text-white"><?= $deriv_balance['error'] ?></p>
-                        </div>
-                    <?php endif; ?>
-                </div>
-            <?php endif; ?>
-
-
-
             <!--Flash Message -->
             <!-- Flash Message -->
             <?php if ($flash = $this->session->flashdata('msg')) : ?>
@@ -693,47 +655,6 @@ if (!empty($checkout_token)) {
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <!-- jsPDF for PDF generation -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-
-
-    <script>
-        $(document).ready(function() {
-            // Refresh Deriv balance
-            $('#refreshDerivBalance').click(function() {
-                const $icon = $(this).find('i');
-                $icon.addClass('fa-spin');
-
-                $.ajax({
-                    url: '<?= base_url('Main/refresh_deriv_balance') ?>',
-                    type: 'GET',
-                    dataType: 'json',
-                    success: function(response) {
-                        if (response.status === 'success') {
-                            $('#derivBalanceAmount').html(
-                                response.currency + ' ' + response.balance +
-                                ' <span class="text-lg ml-2">(KES ' + response.balance_kes + ')</span>'
-                            );
-
-                            // Update account info if available
-                            if (response.account) {
-                                $('.deriv-account').text('Account: ' + response.account);
-                            }
-
-                            // Remove error if present
-                            $('.deriv-error').remove();
-                        } else {
-                            alert('Error: ' + response.message);
-                        }
-                    },
-                    error: function() {
-                        alert('Error refreshing balance');
-                    },
-                    complete: function() {
-                        $icon.removeClass('fa-spin');
-                    }
-                });
-            });
-        });
-    </script>
 </body>
 
 </html>
