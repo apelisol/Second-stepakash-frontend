@@ -504,6 +504,30 @@ $config['compress_output'] = FALSE;
 */
 $config['time_reference'] = 'local';
 
+
+/*|--------------------------------------------------------------------------
+| Reverse Proxy IPs 
+|--------------------------------------------------------------------------
+|
+| If your server is behind a reverse proxy, you must whitelist the proxy
+| IP addresses from which CodeIgniter should trust headers such as
+| HTTP_X_FORWARDED_FOR and HTTP_CLIENT_IP in order to properly identify
+| the visitor's IP address.
+|
+| You can use both an array or a comma-separated list of proxy addresses,
+| as well as specifying whole subnets. Here are a few examples:     
+|| Comma-separated:	'10.0.1.200,192.168.5.0/24'
+|| Array:		array('10.0.1.200', '192.168.5.0/24')
+*/
+$config['proxy_ips'] = '';
+
+$config['log_threshold'] = 2; // 1=Error, 2=Debug, 3=Info, 4=All
+$config['log_path'] = '';
+$config['log_file_extension'] = 'log';
+$config['log_file_permissions'] = 0644;
+$config['log_date_format'] = 'Y-m-d H:i:s';
+$config['log_max_files'] = 30; // Keep logs for 30 days
+
 /*
 |--------------------------------------------------------------------------
 | Rewrite PHP Short Tags

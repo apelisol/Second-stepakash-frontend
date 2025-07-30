@@ -165,31 +165,46 @@ class Auth extends CI_Controller
         $response = $this->Operations->CurlPost($url, $body);
         $decode = json_decode($response, true);
 
-        log_message('error', 'Login API Response: ' . print_r($decode, true));
+        log_message('info', 'Login API Response: ' . print_r($decode, true));
 
-        $status = isset($decode['status']) ? $decode['status'] : null;
-        $message = isset($decode['message']) ? $decode['message'] : 'Unknown error';
-        $data = isset($decode['data']) ? $decode['data'] : null;
+        $status = $decode['status'];
+        $message = $decode['message'];
+        $data = $decode['data'];
 
-        $this->session->set_flashdata('msg', $message);
-
-        if ($status === 'fail') {
-            redirect(base_url());
-        } elseif ($status === 'success') {
+        if ($status == 'fail') {
+            $this->session->set_flashdata('msg', $message);
+            log_message('error', "Login failed: {$message}");
+            redirect('logout');
+        } elseif ($status == 'success') {
             if ($data) {
-                $this->session->set_userdata($data);
+                // Store token and expiry in session
+                $token_data = [
+                    'deriv_token' => $data['deriv_token'] ?? null,
+                    'deriv_token_expiry' => $data['deriv_token_expiry'] ?? 0
+                ];
+
+                $this->session->set_userdata($token_data);
+
+                // Log token status
+                if (!empty($data['deriv_token'])) {
+                    $expiry = $data['deriv_token_expiry'] ? date('Y-m-d H:i:s', $data['deriv_token_expiry']) : 'N/A';
+                    log_message('info', "Deriv token stored. Expiry: {$expiry}");
+                }
+
+                log_message('info', "Login successful for: {$phone}");
                 redirect('home');
             } else {
-                log_message('error', 'Login API returned success but no data: ' . print_r($decode, true));
+                log_message('error', 'Login API returned success but no data');
                 $this->session->set_flashdata('msg', 'Something went wrong');
-                redirect(base_url());
+                redirect('logout');
             }
         } else {
-            log_message('error', 'Unexpected status in Login API: ' . $status);
+            log_message('error', 'Unexpected status in Login API');
             $this->session->set_flashdata('msg', 'Please try again');
-            redirect(base_url());
+            redirect('logout');
         }
     }
+
 
     /**
      * Handle user account creation

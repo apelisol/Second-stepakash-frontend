@@ -72,19 +72,61 @@ class Main extends CI_Controller
         $message = $decode['message'];
         $data = $decode['data'];
 
+        // Initialize Deriv balance variables
+        $data['deriv_balance'] = null;
+        $data['deriv_balance_kes'] = 0;
+        $data['deriv_token_status'] = 'no_token';
+        $data['deriv_error'] = '';
+
         if ($status == 'fail') {
             $this->session->set_flashdata('msg', $message);
             redirect('logout');
         } elseif ($status == 'success' || $status == 'error') {
-            // Get Deriv balance if account is connected
+            // Get Deriv token and expiration
             $deriv_token = $this->session->userdata('deriv_token');
-            if ($deriv_token) {
-                $deriv_balance = $this->getDerivBalance($deriv_token);
-                $data['deriv_balance'] = $deriv_balance;
+            $token_expiry = $this->session->userdata('deriv_token_expiry');
+            $current_time = time();
 
-                // Calculate equivalent KES value using buy rate
-                if ($deriv_balance && isset($deriv_balance['balance'])) {
-                    $data['deriv_balance_kes'] = $deriv_balance['balance'] * $data['buyrate'];
+            // Log token status
+            log_message('debug', 'Home loaded. Token exists: ' . ($deriv_token ? 'yes' : 'no') .
+                ', Expiry: ' . ($token_expiry ? date('Y-m-d H:i:s', $token_expiry) : 'N/A') .
+                ', Current: ' . date('Y-m-d H:i:s'));
+
+            if ($deriv_token) {
+                // Check token expiration
+                if ($current_time > $token_expiry) {
+                    $data['deriv_token_status'] = 'expired';
+                    $data['deriv_error'] = 'Deriv token expired. Please reconnect your account.';
+                    log_message('error', 'Deriv token expired during home load');
+                } else {
+                    try {
+                        $data['deriv_token_status'] = 'valid';
+
+                        // Get balance with token expiration check
+                        $deriv_balance = $this->getDerivBalance($deriv_token);
+                        $data['deriv_balance'] = $deriv_balance;
+
+                        // Log balance status
+                        if (isset($deriv_balance['error'])) {
+                            $data['deriv_error'] = $deriv_balance['error'];
+                            log_message('error', 'Deriv balance error: ' . $deriv_balance['error']);
+                        } else {
+                            log_message('info', 'Deriv balance fetched: ' .
+                                $deriv_balance['balance'] . ' ' .
+                                $deriv_balance['currency']);
+                        }
+
+                        // Calculate equivalent KES value
+                        if (isset($deriv_balance['balance']) && isset($data['buyrate'])) {
+                            $data['deriv_balance_kes'] = $deriv_balance['balance'] * $data['buyrate'];
+                            log_message('debug', 'KES conversion: ' .
+                                $deriv_balance['balance'] . ' USD * ' .
+                                $data['buyrate'] . ' = ' . $data['deriv_balance_kes'] . ' KES');
+                        }
+                    } catch (Exception $e) {
+                        $data['deriv_error'] = 'Error fetching Deriv balance: ' . $e->getMessage();
+                        log_message('error', 'Deriv balance exception: ' . $e->getMessage());
+                    }
                 }
             }
 
@@ -92,18 +134,34 @@ class Main extends CI_Controller
             $this->load->view('home', $data);
             $this->load->view('includes/footer', $data);
         } else {
-            $this->session->set_flashdata('msg', 'something went wrong');
+            $this->session->set_flashdata('msg', 'Something went wrong');
             redirect('logout');
         }
     }
 
-    // Frontend Controller (Main.php)
     private function getDerivBalance($token)
     {
-        // Check cache first
+        // Check token expiration first
+        $expiry = $this->session->userdata('deriv_token_expiry');
+        $current_time = time();
+
+        if ($current_time > $expiry) {
+            log_message('error', 'Token expired during balance check. Expired at: '
+                . date('Y-m-d H:i:s', $expiry));
+            return [
+                'error' => 'Token expired. Please reauthenticate.',
+                'balance' => 0,
+                'currency' => 'USD'
+            ];
+        }
+
+        // Check cache
         $cacheKey = 'deriv_balance_' . md5($token);
         $cached = $this->cache->get($cacheKey);
-        if ($cached !== false) return $cached;
+        if ($cached !== false) {
+            log_message('debug', 'Using cached balance');
+            return $cached;
+        }
 
         try {
             $appId = 76420;
@@ -121,26 +179,26 @@ class Main extends CI_Controller
             ];
 
             $client = new \WebSocket\Client($url, $options);
+            log_message('debug', 'WebSocket connection established');
 
-            // 1. Authorize
+            // Authorize
             $client->send(json_encode(["authorize" => $token]));
             $authResponse = json_decode($client->receive(), true);
 
             if (isset($authResponse['error'])) {
-                throw new Exception('Authorization failed: ' . $authResponse['error']['message']);
+                throw new Exception('Auth error: ' . $authResponse['error']['message']);
             }
+            log_message('debug', 'Authorization successful for balance check');
 
-            // 2. Get balance
+            // Get balance
             $client->send(json_encode([
                 "balance" => 1,
-                "subscribe" => 0,
-                "account" => "current" // Request current account balance
+                "subscribe" => 0
             ]));
 
             $balanceResponse = json_decode($client->receive(), true);
             $client->close();
 
-            // Properly parse the response
             if (isset($balanceResponse['error'])) {
                 throw new Exception('Balance error: ' . $balanceResponse['error']['message']);
             }
@@ -158,14 +216,17 @@ class Main extends CI_Controller
 
             // Cache for 1 minute
             $this->cache->save($cacheKey, $result, 60);
+            log_message('info', 'Balance fetched: ' . $result['balance'] . ' ' . $result['currency']);
+
             return $result;
         } catch (Exception $e) {
             log_message('error', 'Deriv API Error: ' . $e->getMessage());
 
-            // Return cached data if available (even if expired)
+            // Return cached data if available
             $staleCache = $this->cache->get($cacheKey);
             if ($staleCache !== false) {
                 $staleCache['stale'] = true;
+                log_message('debug', 'Using stale cache data');
                 return $staleCache;
             }
 
@@ -177,7 +238,9 @@ class Main extends CI_Controller
         }
     }
 
-    // Frontend Controller
+    /**
+     * Refresh Deriv balance via AJAX
+     */
     public function refresh_deriv_balance()
     {
         header('Content-Type: application/json');
@@ -188,8 +251,20 @@ class Main extends CI_Controller
         }
 
         $deriv_token = $this->session->userdata('deriv_token');
+        $expiry = $this->session->userdata('deriv_token_expiry');
+
         if (!$deriv_token) {
             echo json_encode(['status' => 'error', 'message' => 'No Deriv account connected']);
+            return;
+        }
+
+        // Check token expiration
+        if (time() > $expiry) {
+            log_message('error', 'Token expired during balance refresh');
+            echo json_encode([
+                'status' => 'error',
+                'message' => 'Token expired. Please reauthenticate.'
+            ]);
             return;
         }
 
@@ -220,6 +295,9 @@ class Main extends CI_Controller
             ]);
         }
     }
+
+
+
     public function transactions()
     {
         $url = APP_INSTANCE . 'home_data';
