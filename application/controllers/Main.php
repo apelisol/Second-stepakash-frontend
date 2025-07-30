@@ -58,83 +58,93 @@ class Main extends CI_Controller
     // Main Application Functions
     public function home()
     {
-        $url = APP_INSTANCE . 'home_data';
-        $session_id = $this->session->userdata('session_id');
+        try {
+            $url = APP_INSTANCE . 'home_data';
+            $session_id = $this->session->userdata('session_id');
 
-        $body = array(
-            'session_id' => $session_id,
-        );
-
-        $response = $this->Operations->CurlPost($url, $body);
-        $decode = json_decode($response, true);
-
-        $status = $decode['status'];
-        $message = $decode['message'];
-        $data = $decode['data'];
-
-        // Initialize Deriv balance variables
-        $data['deriv_balance'] = null;
-        $data['deriv_balance_kes'] = 0;
-        $data['deriv_token_status'] = 'no_token';
-        $data['deriv_error'] = '';
-
-        if ($status == 'fail') {
-            $this->session->set_flashdata('msg', $message);
-            redirect('logout');
-        } elseif ($status == 'success' || $status == 'error') {
-            // Get Deriv token and expiration
-            $deriv_token = $this->session->userdata('deriv_token');
-            $token_expiry = $this->session->userdata('deriv_token_expiry');
-            $current_time = time();
-
-            // Log token status
-            log_message('debug', 'Home loaded. Token exists: ' . ($deriv_token ? 'yes' : 'no') .
-                ', Expiry: ' . ($token_expiry ? date('Y-m-d H:i:s', $token_expiry) : 'N/A') .
-                ', Current: ' . date('Y-m-d H:i:s'));
-
-            if ($deriv_token) {
-                // Check token expiration
-                if ($current_time > $token_expiry) {
-                    $data['deriv_token_status'] = 'expired';
-                    $data['deriv_error'] = 'Deriv token expired. Please reconnect your account.';
-                    log_message('error', 'Deriv token expired during home load');
-                } else {
-                    try {
-                        $data['deriv_token_status'] = 'valid';
-
-                        // Get balance with token expiration check
-                        $deriv_balance = $this->getDerivBalance($deriv_token);
-                        $data['deriv_balance'] = $deriv_balance;
-
-                        // Log balance status
-                        if (isset($deriv_balance['error'])) {
-                            $data['deriv_error'] = $deriv_balance['error'];
-                            log_message('error', 'Deriv balance error: ' . $deriv_balance['error']);
-                        } else {
-                            log_message('info', 'Deriv balance fetched: ' .
-                                $deriv_balance['balance'] . ' ' .
-                                $deriv_balance['currency']);
-                        }
-
-                        // Calculate equivalent KES value
-                        if (isset($deriv_balance['balance']) && isset($data['buyrate'])) {
-                            $data['deriv_balance_kes'] = $deriv_balance['balance'] * $data['buyrate'];
-                            log_message('debug', 'KES conversion: ' .
-                                $deriv_balance['balance'] . ' USD * ' .
-                                $data['buyrate'] . ' = ' . $data['deriv_balance_kes'] . ' KES');
-                        }
-                    } catch (Exception $e) {
-                        $data['deriv_error'] = 'Error fetching Deriv balance: ' . $e->getMessage();
-                        log_message('error', 'Deriv balance exception: ' . $e->getMessage());
-                    }
-                }
+            // Check if session ID exists
+            if (empty($session_id)) {
+                log_message('error', 'Session ID missing in home()');
+                $this->session->set_flashdata('msg', 'Session expired. Please login again.');
+                redirect('logout');
             }
 
-            $this->load->view('includes/header');
-            $this->load->view('home', $data);
-            $this->load->view('includes/footer', $data);
-        } else {
-            $this->session->set_flashdata('msg', 'Something went wrong');
+            $body = array('session_id' => $session_id);
+            $response = $this->Operations->CurlPost($url, $body);
+
+            // Check if we got a valid response
+            if (empty($response)) {
+                throw new Exception('Empty response from home_data API');
+            }
+
+            $decode = json_decode($response, true);
+
+            // Check if JSON decoding worked
+            if ($decode === null) {
+                throw new Exception('Invalid JSON response: ' . $response);
+            }
+
+            $status = $decode['status'] ?? 'error';
+            $message = $decode['message'] ?? 'Unknown error';
+            $data = $decode['data'] ?? [];
+
+            // Initialize Deriv-related variables with default values
+            $data['deriv_balance'] = null;
+            $data['deriv_balance_kes'] = 0;
+            $data['deriv_token_status'] = 'no_token';
+            $data['deriv_error'] = '';
+
+            if ($status == 'fail') {
+                $this->session->set_flashdata('msg', $message);
+                redirect('logout');
+            } elseif ($status == 'success' || $status == 'error') {
+                // Safely get Deriv token and expiration
+                $deriv_token = $this->session->userdata('deriv_token') ?? null;
+                $token_expiry = $this->session->userdata('deriv_token_expiry') ?? 0;
+                $current_time = time();
+
+                if ($deriv_token) {
+                    // Check token expiration
+                    if ($current_time > $token_expiry) {
+                        $data['deriv_token_status'] = 'expired';
+                        $data['deriv_error'] = 'Deriv connection expired. Please reconnect.';
+                    } else {
+                        try {
+                            $data['deriv_token_status'] = 'valid';
+
+                            // Get Deriv balance
+                            $deriv_balance = $this->getDerivBalance($deriv_token);
+                            $data['deriv_balance'] = $deriv_balance;
+
+                            // Calculate KES equivalent if we have valid data
+                            if (
+                                isset($deriv_balance['balance']) &&
+                                isset($data['buyrate']) &&
+                                is_numeric($deriv_balance['balance']) &&
+                                is_numeric($data['buyrate'])
+                            ) {
+                                $data['deriv_balance_kes'] = $deriv_balance['balance'] * $data['buyrate'];
+                            }
+                        } catch (Exception $e) {
+                            $data['deriv_error'] = 'Error fetching Deriv balance: ' . $e->getMessage();
+                        }
+                    }
+                }
+
+                // Load views
+                $this->load->view('includes/header');
+                $this->load->view('home', $data);
+                $this->load->view('includes/footer', $data);
+            } else {
+                throw new Exception("Invalid status: $status");
+            }
+        } catch (Exception $e) {
+            // Log detailed error
+            log_message('error', 'Home controller error: ' . $e->getMessage());
+            log_message('debug', 'Trace: ' . $e->getTraceAsString());
+
+            // User-friendly message
+            $this->session->set_flashdata('msg', 'System error. Please try again later.');
             redirect('logout');
         }
     }
